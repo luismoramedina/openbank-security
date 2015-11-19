@@ -27,10 +27,21 @@ public class DocumentRestController {
         }
     }
 
+    @RequestMapping(value = "/confirm", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String confirm(@RequestParam("confirmation_text") String confirm) {
+        if (confirm.equalsIgnoreCase("ok")) {
+            return "Document sign is OK";
+        } else {
+            return "Document rejected";
+        }
+    }
+
     @RequestMapping(value = "/document", produces = "application/json")
-    public String doSomething(@RequestParam ("id") String documentId) {
+    public String doSomething(@RequestParam("id") String documentId) {
         String time = new Date().toString();
-//        return "{\"data\" : \"this is the " + time + "\"}";
+        //        return "{\"data\" : \"this is the " + time + "\"}";
 
         return "{\"data\" : \"" + base64file + "\", \"id\" : \"" + documentId + "\"}";
     }
@@ -39,10 +50,9 @@ public class DocumentRestController {
      * Upload single file
      */
     @RequestMapping(value = "/uploadFile", method = RequestMethod.POST)
-    public @ResponseBody
-    String uploadFileHandler(@RequestParam("name") String name,
-                             @RequestParam("file")
-                             MultipartFile file) {
+    public
+    @ResponseBody
+    String uploadFileHandler(@RequestParam("name") String name, @RequestParam("file") MultipartFile file) {
 
         if (!file.isEmpty()) {
             try {
@@ -51,27 +61,24 @@ public class DocumentRestController {
                 // Creating the directory to store file
                 String rootPath = System.getProperty("catalina.home");
                 File dir = new File(rootPath + File.separator + "tmpFiles");
-                if (!dir.exists())
+                if (!dir.exists()) {
                     dir.mkdirs();
+                }
 
                 // Create the file on server
-                File serverFile = new File(dir.getAbsolutePath()
-                                                   + File.separator + name);
-                BufferedOutputStream stream = new BufferedOutputStream(
-                        new FileOutputStream(serverFile));
+                File serverFile = new File(dir.getAbsolutePath() + File.separator + name);
+                BufferedOutputStream stream = new BufferedOutputStream(new FileOutputStream(serverFile));
                 stream.write(bytes);
                 stream.close();
 
-                System.out.println("Server File Location="
-                                    + serverFile.getAbsolutePath());
+                System.out.println("Server File Location=" + serverFile.getAbsolutePath());
 
                 return "You successfully uploaded file=" + name;
             } catch (Exception e) {
                 return "You failed to upload " + name + " => " + e.getMessage();
             }
         } else {
-            return "You failed to upload " + name
-                    + " because the file was empty.";
+            return "You failed to upload " + name + " because the file was empty.";
         }
     }
 }
