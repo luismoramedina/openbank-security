@@ -45,7 +45,7 @@ public class DocumentRestController {
             String confirm) {
 
         if (!checkLatchStatus(accountId, LATCH_OPERATION_ID_CONFIRM)) {
-            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.FORBIDDEN);
+            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.UNAUTHORIZED);
         }
 
         if (confirm.equalsIgnoreCase("ok")) {
@@ -62,7 +62,7 @@ public class DocumentRestController {
             String documentId) {
 
         if (!checkLatchStatus(accountId, LATCH_OPERATION_ID_DOCUMENT)) {
-            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.FORBIDDEN);
+            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.UNAUTHORIZED);
         }
 
         String time = new Date().toString();
