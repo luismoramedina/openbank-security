@@ -1,0 +1,1 @@
+Para que funcione Latch es necesario importar esta CA (ca_latch.pem) en el almacén de certificados de la jdk que estemos usando, ej. "\jre\lib\security\cacerts"
