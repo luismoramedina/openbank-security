@@ -166,6 +166,9 @@ public class DocumentRestController {
         return isAllowed;
     }
 
+    /**
+     * @param token this code is given to the user by the application
+     */
     public String pair(String token) {
         LatchApp latch = new LatchApp(LATCH_APP_ID, LATCH_SECRET);
         LatchResponse latchResponse = latch.pair(token);
