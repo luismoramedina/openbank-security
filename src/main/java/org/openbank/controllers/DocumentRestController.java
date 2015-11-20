@@ -35,7 +35,7 @@ import java.util.List;
 @RestController
 public class DocumentRestController {
 
-    private static final String PATH_TO_KEYSTORE = "./src/main/resources/openbank.jks";
+    private static final String PATH_TO_KEYSTORE = "/openbank.jks";
     private static final String KEYSTORE_PASSWORD = "123123123";
     private static final String KEY_ALIAS_IN_KEYSTORE = "openbank-server";
     private static final String SIGNATUREALGO = "SHA1withRSA";
@@ -95,7 +95,7 @@ public class DocumentRestController {
 
     private KeyStore loadKeyStore() throws Exception {
         KeyStore keystore = KeyStore.getInstance("JKS");
-        InputStream is = new FileInputStream(PATH_TO_KEYSTORE);
+        InputStream is = DocumentRestController.class.getResourceAsStream(PATH_TO_KEYSTORE);
         keystore.load(is, KEYSTORE_PASSWORD.toCharArray());
         return keystore;
     }
