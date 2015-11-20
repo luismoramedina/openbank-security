@@ -3,13 +3,31 @@ package org.openbank.controllers;
 import com.elevenpaths.latch.LatchApp;
 import com.elevenpaths.latch.LatchResponse;
 import org.apache.tomcat.util.codec.binary.Base64;
+import org.bouncycastle.cert.jcajce.JcaCertStore;
+import org.bouncycastle.cms.CMSProcessableByteArray;
+import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.CMSSignedDataGenerator;
+import org.bouncycastle.cms.CMSTypedData;
+import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
+import org.bouncycastle.util.Store;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
-import java.util.Date;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.KeyStore;
+import java.security.PrivateKey;
+import java.security.Security;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author luismoramedina
@@ -17,11 +35,17 @@ import java.util.Date;
 @RestController
 public class DocumentRestController {
 
+    private static final String PATH_TO_KEYSTORE = "./src/main/resources/openbank.jks";
+    private static final String KEYSTORE_PASSWORD = "123123123";
+    private static final String KEY_ALIAS_IN_KEYSTORE = "openbank-server";
+    private static final String SIGNATUREALGO = "SHA1withRSA";
+
     private static final String LATCH_APP_ID = "XwdV4gNMLDGM7a9wiAiY";
     private static final String LATCH_SECRET = "48ujUr3kBpnF8DXQWxpWKzkWuu8pBCZXg8kE2w4N";
     private static final String LATCH_OPERATION_ID_DOCUMENT = "m2dTR23x67PF3jgCsU3q";
     private static final String LATCH_OPERATION_ID_CONFIRM = "AdeGmfs9yKVkLi2rWKnX";
     private static String base64file;
+    private static byte[] fileBytes;
 
     private static String accountId = "Ujsqpn6xCZgVKarJ36hYmjY2zdFnJgmGMWHK6cGMeLXP6racvjTpXqJGnURQVJuk";
 
@@ -32,9 +56,12 @@ public class DocumentRestController {
             resourceAsStream.read(b);
             resourceAsStream.close();
             base64file = Base64.encodeBase64String(b);
+            fileBytes = b;
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        Security.addProvider(new BouncyCastleProvider());
     }
 
     @RequestMapping ( value = "/confirm", produces = "application/json" )
@@ -56,55 +83,60 @@ public class DocumentRestController {
         }
     }
 
-    @RequestMapping ( value = "/document", produces = "application/json" )
-    public ResponseEntity<String> document(
-            @RequestParam ( "id" )
-            String documentId) {
+    @RequestMapping(value = "/document", produces = "application/json")
+    public ResponseEntity<String> document(@RequestParam("id") String documentId) throws Exception {
+//        if (!checkLatchStatus(accountId, LATCH_OPERATION_ID_DOCUMENT)) {
+//            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.UNAUTHORIZED);
+//        }
+        String signedB64Document = signDocument(fileBytes);
 
-        if (!checkLatchStatus(accountId, LATCH_OPERATION_ID_DOCUMENT)) {
-            return new ResponseEntity<String>("{\"result\":\"Operation locked by Latch\"}", HttpStatus.UNAUTHORIZED);
-        }
-
-        String time = new Date().toString();
-        //        return "{\"data\" : \"this is the " + time + "\"}";
-
-        return new ResponseEntity<String>("{\"data\" : \"" + base64file + "\", \"id\" : \"" + documentId + "\"}", HttpStatus.OK);
+        return new ResponseEntity<String>("{\"data\" : \"" + signedB64Document + "\", \"id\" : \"" + documentId + "\"}", HttpStatus.OK);
     }
 
-    /**
-     * Upload single file
-     */
-    @RequestMapping(value = "/uploadFile", method = RequestMethod.POST)
-    public
-    @ResponseBody
-    String uploadFileHandler(@RequestParam("name") String name, @RequestParam("file") MultipartFile file) {
+    private KeyStore loadKeyStore() throws Exception {
+        KeyStore keystore = KeyStore.getInstance("JKS");
+        InputStream is = new FileInputStream(PATH_TO_KEYSTORE);
+        keystore.load(is, KEYSTORE_PASSWORD.toCharArray());
+        return keystore;
+    }
 
-        if (!file.isEmpty()) {
-            try {
-                byte[] bytes = file.getBytes();
+    private CMSSignedDataGenerator setupProvider(KeyStore keystore) throws Exception {
+        Certificate[] certchain = keystore.getCertificateChain(KEY_ALIAS_IN_KEYSTORE);
 
-                // Creating the directory to store file
-                String rootPath = System.getProperty("catalina.home");
-                File dir = new File(rootPath + File.separator + "tmpFiles");
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
+        final List<Certificate> certlist = new ArrayList<Certificate>();
 
-                // Create the file on server
-                File serverFile = new File(dir.getAbsolutePath() + File.separator + name);
-                BufferedOutputStream stream = new BufferedOutputStream(new FileOutputStream(serverFile));
-                stream.write(bytes);
-                stream.close();
-
-                System.out.println("Server File Location=" + serverFile.getAbsolutePath());
-
-                return "You successfully uploaded file=" + name;
-            } catch (Exception e) {
-                return "You failed to upload " + name + " => " + e.getMessage();
-            }
-        } else {
-            return "You failed to upload " + name + " because the file was empty.";
+        for (int i = 0, length = certchain == null ? 0 : certchain.length; i < length; i++) {
+            certlist.add(certchain[i]);
         }
+
+        Store certstore = new JcaCertStore(certlist);
+
+        Certificate cert = keystore.getCertificate(KEY_ALIAS_IN_KEYSTORE);
+
+        ContentSigner signer = new JcaContentSignerBuilder(SIGNATUREALGO).setProvider("BC").
+                build((PrivateKey) (keystore.getKey(KEY_ALIAS_IN_KEYSTORE, KEYSTORE_PASSWORD.toCharArray())));
+
+        CMSSignedDataGenerator generator = new CMSSignedDataGenerator();
+
+        generator.addSignerInfoGenerator(new JcaSignerInfoGeneratorBuilder(new JcaDigestCalculatorProviderBuilder().setProvider("BC").
+                build()).build(signer, (X509Certificate) cert));
+
+        generator.addCertificates(certstore);
+
+        return generator;
+    }
+
+    byte[] signPkcs7(final byte[] content, final CMSSignedDataGenerator generator) throws Exception {
+        CMSTypedData cmsdata = new CMSProcessableByteArray(content);
+        CMSSignedData signeddata = generator.generate(cmsdata, true);
+        return signeddata.getEncoded();
+    }
+
+    private String signDocument(byte[] bytesDocument) throws Exception {
+        KeyStore keystore = loadKeyStore();
+        CMSSignedDataGenerator signatureGenerator = setupProvider(keystore);
+        byte[] signedBytes = signPkcs7(bytesDocument, signatureGenerator);
+        return Base64.encodeBase64String(signedBytes);
     }
 
     @RequestMapping(value = "/pair", produces = "application/json")
